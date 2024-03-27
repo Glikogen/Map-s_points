@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>marker_of_local_st.png</file>
+        <file>marker_of_remote_st.png</file>
+    </qresource>
+</RCC>

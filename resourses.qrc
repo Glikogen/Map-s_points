@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main_map.qml</file>
+        <file>MapAddingDialog.qml</file>
+    </qresource>
+</RCC>
