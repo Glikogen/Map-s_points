@@ -12,10 +12,15 @@ import ModelView 1.0
 Item {
     id: rootItem
 
-    function setAngles(angle1, angle2) {
-        console.log("angle1 = " + angle1 + "; angle2 = " + angle2);
-        modelView.alfa1 = angle1;
-        modelView.alfa2 = angle2;
+    function setAngles(angles, bias){
+        for(var i = 0; i < angles.length; i++){
+            if (modelView.angles.count === i) modelView.angles.append( { "angle": angles[i]} );
+            else  modelView.angles.get(i).angle = angles[i];
+
+            modelView.angle = angles[i];
+        }
+
+        modelView.delta = bias;
     }
 
     ModelView {
@@ -30,8 +35,9 @@ Item {
         property string pathToImage
 
         //углы
-        property real alfa1
-        property real alfa2
+        property real angle
+        property ListModel angles: ListModel { }
+        property real delta : 0
 
         onSendMapImageData: (map_name, top_left_latitude, top_left_longitude, bottom_right_latitude, bottom_right_longitude, path_to_image) => {
                                 mapName = map_name;
@@ -103,6 +109,7 @@ Item {
 
                     Repeater {
                         id: repeater_canvas
+
                         property bool is_ma1_active: false
                         property bool is_ma2_active: false
                         model: point_model
@@ -110,43 +117,60 @@ Item {
                             id: canvas
                             anchors.fill: parent
 
+                            property var angleVar: modelView.angle
+                            onAngleVarChanged: {
+                                canvas.requestPaint();
+                            }
+
                             // Code to draw a simple arrow on TypeScript canvas got from https://stackoverflow.com/a/64756256/867349
                             function arrow(context, fromx, fromy, tox, toy) {
 
+                                var k = 100;
+
+                                //построение основной стрелки
+                                toy = 0;
                                 const dx = tox - fromx;
-                                const dy = toy - fromy;
-                                const headlen = Math.sqrt(dx * dx + dy * dy) * 0.25; // length of head in pixels
-                                const angle = Math.atan2(dy, dx);
+
+                                //построение линии с учетом смещения delta
+                                var delta = modelView.delta * Math.PI/180;
+                                var x1 = (tox - fromx)*Math.cos(delta)-(toy-fromy)*Math.sin(delta)+fromx;
+                                var y1 = (tox - fromx)*Math.sin(delta)+(toy-fromy)*Math.cos(delta)+fromy;
+                                var dx1 = x1 - fromx;
+                                var dy1 = y1 - fromy;
+                                var headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.25; // length of head in pixels
+                                var angle1 = Math.atan2(dy1, dx1);
                                 context.beginPath();
                                 context.moveTo(fromx, fromy);
-                                context.lineTo(tox, toy);
+                                context.lineTo(x1, y1);
                                 context.stroke();
                                 context.beginPath();
-                                context.moveTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
-                                context.lineTo(tox, toy);
-                                context.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
-                                //в зависимости от индекса(номера точки) выбираем угол
-                                var beta = model.index === 0 ? modelView.alfa1 * Math.PI/180 : modelView.alfa2 * Math.PI/180;
-                                var x2 = (tox - fromx)*Math.cos(beta)-(toy-fromy)*Math.sin(beta)+fromx;
-                                var y2 = (tox - fromx)*Math.sin(beta)+(toy-fromy)*Math.cos(beta)+fromy;
+                                context.moveTo(x1 - headlen1 * Math.cos(angle1 - Math.PI / 6), y1 - headlen1 * Math.sin(angle1 - Math.PI / 6));
+                                context.lineTo(x1, y1);
+                                context.lineTo(x1 - headlen1 * Math.cos(angle1 + Math.PI / 6), y1 - headlen1 * Math.sin(angle1 + Math.PI / 6));
                                 context.stroke();
 
-                                var k = 3;
+
+                                //построение линии с учетом угла альфа
+                                var beta = modelView.angles.get(model.index).angle * Math.PI/180;
+//                                console.log("beta = " + modelView.angles.get(model.index).angle);
+                                var x2 = (x1 - fromx)*Math.cos(beta)-(y1-fromy)*Math.sin(beta)+fromx;
+                                var y2 = (x1 - fromx)*Math.sin(beta)+(y1-fromy)*Math.cos(beta)+fromy;
+
                                 var alfa = Math.atan2((y2 - fromy),(x2 - fromx));
                                 var tempAlfa = alfa *180.0/Math.PI;
                                 var mainAlfa = tempAlfa > 0 ? tempAlfa : 360 + tempAlfa;
-                                const dx_temp = Math.abs(x2 - fromx);
-                                const dy_temp = Math.abs(y2 - fromy);
+                                var dx_temp = Math.abs(x2 - fromx);
+                                var dy_temp = Math.abs(y2 - fromy);
                                 var L = Math.sqrt(dx_temp * dx_temp + dy_temp * dy_temp);
                                 var newx = k * L * Math.cos(alfa);
                                 var newy = k * L * Math.sin(alfa);
                                 x2 = fromx + newx;
                                 y2 = fromy + newy;
 
-                                const dx1 = x2 - fromx;
-                                const dy1 = y2 - fromy;
-                                const headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.25; // length of head in pixels
-                                const angle1 = Math.atan2(dy1, dx1);
+                                dx1 = x2 - fromx;
+                                dy1 = y2 - fromy;
+                                headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.25; // length of head in pixels
+                                angle1 = Math.atan2(dy1, dx1);
                                 context.beginPath();
                                 context.moveTo(fromx, fromy);
                                 context.lineTo(x2, y2);
@@ -160,25 +184,26 @@ Item {
 
                             onPaint: {
                                 // Get the canvas context
-                                if (point_model.count === 0) return;
-                                if (v1_button.vector_1_is_active === false && v2_button.vector_2_is_active === false) return;
+                                if (point_model.count === 0) return;//???
+//                                if (v1_button.vector_1_is_active === false && v2_button.vector_2_is_active === false) return;
                                 var ctx = getContext("2d");
                                 ctx.reset();
                                 // Draw an arrow on given context starting at position (0, 0) -- top left corner up to position (mouseX, mouseY)
                                 //   determined by mouse coordinates position
                                 var x_zero = model.xpos;
                                 var y_zero = model.ypos;
-                                arrow(ctx, x_zero, y_zero, ma_canvas.mouseX, ma_canvas.mouseY);
+                                arrow(ctx, x_zero, y_zero, x_zero, y_zero);
                             }
 
                             MouseArea {
                                 id: ma_canvas
                                 anchors.fill: parent
-                                enabled: model.index === 0 ? repeater_canvas.is_ma1_active : repeater_canvas.is_ma2_active
-                                hoverEnabled: enabled ? true : false
-                                // Do a paint requests on each mouse position change (X and Y separately)
-                                onMouseXChanged: canvas.requestPaint()
-                                onMouseYChanged: canvas.requestPaint()
+//                                enabled: model.index === 0 ? repeater_canvas.is_ma1_active : repeater_canvas.is_ma2_active
+//                                hoverEnabled: enabled ? true : false
+                                hoverEnabled: true
+                                onClicked: {
+                                    canvas.requestPaint();
+                                }
                             }
                         }
                     }
@@ -187,7 +212,7 @@ Item {
                         id: ma_points
                         anchors.fill: parent
                         onClicked: {
-                            console.log("in ma_points");
+                            if (point_model.count >= modelView.angles.count) return;
                             var newPoint = {};
                             newPoint.xpos = mouseX;
                             newPoint.ypos = mouseY;
@@ -231,11 +256,6 @@ Item {
                         id: point_model
                     }
                 }
-
-                interactive: v1_button.vector_1_is_active || v2_button.vector_2_is_active ? false : true;
-//                onFlickStarted: {
-//                    if (v1_button.vector_1_is_active || v2_button.vector_2_is_active) mapFrame.cancelFlick();
-//                }
 
                 MouseArea {
                     id: ma_for_flickable
@@ -292,52 +312,52 @@ Item {
                 anchors.margins: 10
             }
 
-            Button {
-                id: v1_button
-                height: 30
-                property bool vector_1_is_active: false
-                text: "Vector1"
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.margins: 5
-                highlighted: vector_1_is_active
-                onClicked: {
-                    if (point_model.count < 1 || v2_button.vector_2_is_active) return;
-                    vector_1_is_active = !vector_1_is_active;
-                    if (vector_1_is_active) {
-                        ma_points.enabled = false;
-                        repeater_canvas.is_ma1_active = true;
-                    }
-                    else {
-                        ma_points.enabled = true;
-                        repeater_canvas.is_ma1_active = false;
-                    }
-                }
-            }
+//            Button {
+//                id: v1_button
+//                height: 30
+//                property bool vector_1_is_active: false
+//                text: "Vector1"
+//                anchors.left: parent.left
+//                anchors.top: parent.top
+//                anchors.margins: 5
+//                highlighted: vector_1_is_active
+//                onClicked: {
+//                    if (point_model.count < 1 || v2_button.vector_2_is_active) return;
+//                    vector_1_is_active = !vector_1_is_active;
+//                    if (vector_1_is_active) {
+//                        ma_points.enabled = false;
+//                        repeater_canvas.is_ma1_active = true;
+//                    }
+//                    else {
+//                        ma_points.enabled = true;
+//                        repeater_canvas.is_ma1_active = false;
+//                    }
+//                }
+//            }
 
-            Button {
-                id: v2_button
-                height: 30
-                text: "Vector2"
-                property bool vector_2_is_active: false
-                anchors.left: parent.left
-                anchors.top: v1_button.bottom
-                anchors.margins: 5
-                highlighted: vector_2_is_active
-                onClicked: {
-                    if (point_model.count < 2 || v1_button.vector_1_is_active) return;
-                    vector_2_is_active = !vector_2_is_active;
+//            Button {
+//                id: v2_button
+//                height: 30
+//                text: "Vector2"
+//                property bool vector_2_is_active: false
+//                anchors.left: parent.left
+//                anchors.top: v1_button.bottom
+//                anchors.margins: 5
+//                highlighted: vector_2_is_active
+//                onClicked: {
+//                    if (point_model.count < 2 || v1_button.vector_1_is_active) return;
+//                    vector_2_is_active = !vector_2_is_active;
 
-                    if (vector_2_is_active) {
-                        ma_points.enabled = false;
-                        repeater_canvas.is_ma2_active = true;
-                    }
-                    else {
-                        ma_points.enabled = true;
-                        repeater_canvas.is_ma2_active = false;
-                    }
-                }
-            }
+//                    if (vector_2_is_active) {
+//                        ma_points.enabled = false;
+//                        repeater_canvas.is_ma2_active = true;
+//                    }
+//                    else {
+//                        ma_points.enabled = true;
+//                        repeater_canvas.is_ma2_active = false;
+//                    }
+//                }
+//            }
 
             Slider {
                 id: slider

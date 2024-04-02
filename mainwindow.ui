@@ -122,17 +122,20 @@
             <item>
              <widget class="QLabel" name="label_5">
               <property name="text">
-               <string>α2</string>
+               <string>смещение:</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QLineEdit" name="le_alfa2">
+             <widget class="QLineEdit" name="le_bias">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
+              </property>
+              <property name="text">
+               <string>0</string>
               </property>
              </widget>
             </item>

@@ -10,9 +10,7 @@ ModelView::ModelView(QObject *parent) : QObject(parent)
 
 void ModelView::addNewMap(QString Name, QString TopLeftLatitude, QString TopLeftLongitude, QString BottomRightLatitude, QString BottomRightLongitude, QString path)
 {
-    qDebug() << "before path = " << path;
     if (path.contains("file:///")) path = path.right(path.length() - 8);
-    qDebug() << "after path = " << path;
 
     QString newPath = QDir::currentPath() + "/" + Name + ".png";//мб .jpeg надо еще предусмотреть
     QFile::copy(path,newPath);//копируем картинку в директорию проекта

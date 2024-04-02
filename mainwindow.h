@@ -5,6 +5,8 @@
 #include "modelview.h"
 #include <QMetaObject>
 #include <QtQuick>
+#include <QVector>
+#include <QTimer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,8 +20,12 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    int i = 0;
+    QVector<QVector<double>> angles;
 signals:
-    void sendAngles(QVariant, QVariant);
+    void sendAngle(QVariant, QVariant);
+public slots:
+    void changeTestAnglesIndex();
 private:
     Ui::MainWindow *ui;
 };
