@@ -23,6 +23,9 @@ void ModelView::addNewMap(QString Name, QString TopLeftLatitude, QString TopLeft
     mapImageData->Bottom_right_longitude = BottomRightLongitude.toDouble();
     mapImageData->PathToImage = newPath;
 
+    qDebug() << "Top_left_longitude = " << mapImageData->Top_left_longitude;
+    qDebug() << "Bottom_right_longitude = " << mapImageData->Bottom_right_longitude;
+
     mapsDataBase->addData(mapImageData);
     setmapNames(mapsDataBase->mapNames);
 }

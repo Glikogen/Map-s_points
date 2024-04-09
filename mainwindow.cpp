@@ -15,18 +15,37 @@ MainWindow::MainWindow(QWidget *parent)
     QObject *rootObj = qobject_cast<QObject*>(ui->quickWidget->rootObject());
 
     //углы для теста
-    angles = {{30, 270, 45, 90},
-              {40, 280, 55, 100},
-              {50, 290, 65, 110},
-              {60, 300, 75, 120},
-              {70, 310, 85, 130},
-              {80, 320, 95, 140},
-              {90, 330, 105, 150},
-              {100, 340, 115, 125}};
+    angles = {{10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90},
+              {10, -10, 999, 90}};
+
+//    angles = {{45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90},
+//              {45, -45, 999, 90}};
+
+    //смещения для теста
+    offsets = {{0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999},
+              {0, 0, 0, 999}};
     QTimer *timer = new QTimer();
     timer->setInterval(1000);
     connect(timer, &QTimer::timeout, [=]() {
-        emit sendAngle(QVariant::fromValue(angles[i]), ui->le_bias->text().toDouble());
+        emit sendAngle(QVariant::fromValue(angles[i]), QVariant::fromValue(offsets[i]));
     });
     connect(timer, &QTimer::timeout, this, &MainWindow::changeTestAnglesIndex);
     timer->start();

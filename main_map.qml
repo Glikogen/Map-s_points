@@ -8,19 +8,40 @@ import QtQuick.Controls.Styles 1.4
 import Qt.labs.qmlmodels 1.0
 import QtQuick.Dialogs 1.2
 import ModelView 1.0
+import Qt.labs.settings 1.1 //с версии QT 6.5 больше не поддерживаеьмся
 
 Item {
     id: rootItem
 
     function setAngles(angles, bias){
         for(var i = 0; i < angles.length; i++){
-            if (modelView.angles.count === i) modelView.angles.append( { "angle": angles[i]} );
-            else  modelView.angles.get(i).angle = angles[i];
+            if (modelView.angles.count === i) {
+                modelView.offsets.append({ "offset": bias[i] });
+                modelView.angles.append({ "angle": angles[i] });
+            }
+            else  {
+                modelView.offsets.get(i).offset = bias[i];
+                modelView.angles.get(i).angle = angles[i];
+            }
 
             modelView.angle = angles[i];
         }
+    }
 
-        modelView.delta = bias;
+    property string datastore: ""
+
+    Component.onCompleted: {
+        if (datastore){
+            point_model.clear();
+            var datamodel = JSON.parse(datastore);
+            for(var i = 0; i < datamodel.length; i++) point_model.append(datamodel[i]);
+        }
+    }
+
+    Component.onDestruction: {
+        var datamodel = [];
+        for(var i = 0; i < point_model.count; i++) datamodel.push(point_model.get(i));
+        datastore = JSON.stringify(datamodel);
     }
 
     ModelView {
@@ -37,7 +58,7 @@ Item {
         //углы
         property real angle
         property ListModel angles: ListModel { }
-        property real delta : 0
+        property ListModel offsets: ListModel { }
 
         onSendMapImageData: (map_name, top_left_latitude, top_left_longitude, bottom_right_latitude, bottom_right_longitude, path_to_image) => {
                                 mapName = map_name;
@@ -87,6 +108,14 @@ Item {
                 property real mouseXCoordinate: zeroPointLongitude.toFixed(5)
                 property real mouseYCoordinate: zeroPointLatitude.toFixed(5)
 
+                //координаты пересечения направлений от первого и второго модуля
+                property real crossingX: 0
+                property real crossingY: 0
+
+                //дистанция от первого и второго модулей до точки пересечения
+                property real distance_fromP1: -1
+                property real distance_fromP2: -1
+
                 Image {
                     id: mapImage
 
@@ -132,27 +161,33 @@ Item {
                                 const dx = tox - fromx;
 
                                 //построение линии с учетом смещения delta
-                                var delta = modelView.delta * Math.PI/180;
+                                //999 в смещении - означает что нам не нужно ничего от этого модуля
+                                if (modelView.offsets.get(model.index).offset === 999) return;
+
+                                var delta = modelView.offsets.get(model.index).offset * Math.PI/180;
                                 var x1 = (tox - fromx)*Math.cos(delta)-(toy-fromy)*Math.sin(delta)+fromx;
                                 var y1 = (tox - fromx)*Math.sin(delta)+(toy-fromy)*Math.cos(delta)+fromy;
                                 var dx1 = x1 - fromx;
                                 var dy1 = y1 - fromy;
-                                var headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.25; // length of head in pixels
+                                var headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.1; // length of head in pixels
                                 var angle1 = Math.atan2(dy1, dx1);
+                                context.lineWidth = 2;
                                 context.beginPath();
                                 context.moveTo(fromx, fromy);
                                 context.lineTo(x1, y1);
                                 context.stroke();
                                 context.beginPath();
-                                context.moveTo(x1 - headlen1 * Math.cos(angle1 - Math.PI / 6), y1 - headlen1 * Math.sin(angle1 - Math.PI / 6));
+                                context.moveTo(x1 - headlen1 * Math.cos(angle1 - Math.PI / 8), y1 - headlen1 * Math.sin(angle1 - Math.PI / 8));
                                 context.lineTo(x1, y1);
-                                context.lineTo(x1 - headlen1 * Math.cos(angle1 + Math.PI / 6), y1 - headlen1 * Math.sin(angle1 + Math.PI / 6));
+                                context.lineTo(x1 - headlen1 * Math.cos(angle1 + Math.PI / 8), y1 - headlen1 * Math.sin(angle1 + Math.PI / 8));
                                 context.stroke();
 
 
                                 //построение линии с учетом угла альфа
+                                //999 в углу - означает что нам не нужно направление на источник от этого модуля
+                                if (modelView.angles.get(model.index).angle === 999) return;
+
                                 var beta = modelView.angles.get(model.index).angle * Math.PI/180;
-//                                console.log("beta = " + modelView.angles.get(model.index).angle);
                                 var x2 = (x1 - fromx)*Math.cos(beta)-(y1-fromy)*Math.sin(beta)+fromx;
                                 var y2 = (x1 - fromx)*Math.sin(beta)+(y1-fromy)*Math.cos(beta)+fromy;
 
@@ -175,6 +210,71 @@ Item {
                                 context.moveTo(fromx, fromy);
                                 context.lineTo(x2, y2);
                                 context.stroke();
+
+
+                                if (point_model.count < 2) return;
+                                //пока что работает только с первым и вторым модулями!!!
+                                var X1 = point_model.get(0).xpos;
+                                var Y1 = point_model.get(0).ypos;
+
+                                var X2 = point_model.get(1).xpos;
+                                var Y2 = point_model.get(1).ypos;
+
+                                var m = 1/Math.tan(modelView.angles.get(0).angle/180*Math.PI);
+                                var n = 1/Math.tan(modelView.angles.get(1).angle/180*Math.PI);
+                                var x = (m * X1 + Y1 - Y2 - n * X2)/(m-n);
+                                var y = -m*(x - X1) + Y1;
+
+                                var propX = Math.abs(x)/mapImage.width;
+                                var propY = Math.abs(y)/mapImage.height;
+
+                                //если точка пересечения лежит за пределами карты
+                                if(x < 0 || y < 0 || x > mapImage.width || y > mapImage.height) {
+                                    mapFrame.crossingX = 0;
+                                    mapFrame.crossingY = 0;
+                                } else {
+                                    mapFrame.crossingX = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
+                                    mapFrame.crossingY = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
+
+                                    //получаем координаты 2-х модулей
+                                    var p1X = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*X1/mapImage.width).toFixed(5);
+                                    var p1Y = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*Y1/mapImage.height).toFixed(5);
+                                    var p2X = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*X2/mapImage.width).toFixed(5);
+                                    var p2Y = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*Y2/mapImage.height).toFixed(5);
+
+                                    mapFrame.distance_fromP1 = (getDistance(p1Y, p1X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
+                                    mapFrame.distance_fromP2 = (getDistance(p2Y, p2X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
+                                }
+                            }
+
+                            //функция вычисления дистанции по двум координатам
+                            function getDistance(lat1, lon1, lat2, lon2){
+                                var distance = 0.0;
+                                if((lon1 === lon2) && (lat1 === lat2)) return distance;
+
+                                var rad = 6372795;
+                                //в радианы
+                                var latid1 = lat1*Math.PI/180.0;
+                                var latid2 = lat2*Math.PI/180.0;
+                                var long1 = lon1*Math.PI/180.0;
+                                var long2 = lon2*Math.PI/180.0;
+
+                                //косинусы и синусы широт и разницы долгот
+                                var coslat1 = Math.cos(latid1);
+                                var coslat2 = Math.cos(latid2);
+                                var sinlat1 = Math.sin(latid1);
+                                var sinlat2 = Math.sin(latid2);
+                                var delta = long2 - long1;
+                                var cosdelta = Math.cos(delta);
+                                var sindelta = Math.sin(delta);
+
+                                //вычисления длины большого круга
+                                var y = Math.sqrt(Math.pow(coslat2*sindelta, 2) + Math.pow(coslat1*sinlat2 - sinlat1*coslat2*cosdelta, 2));
+                                var x = sinlat1*sinlat2 + coslat1*coslat2*cosdelta;
+                                var ad = Math.atan2(y,x);
+                                distance = ad*rad;
+
+                                return distance;
                             }
 
                             function clearCanvas(){
@@ -184,22 +284,20 @@ Item {
 
                             onPaint: {
                                 // Get the canvas context
-                                if (point_model.count === 0) return;//???
-//                                if (v1_button.vector_1_is_active === false && v2_button.vector_2_is_active === false) return;
+                                if (point_model.count === 0) return;
                                 var ctx = getContext("2d");
                                 ctx.reset();
                                 // Draw an arrow on given context starting at position (0, 0) -- top left corner up to position (mouseX, mouseY)
                                 //   determined by mouse coordinates position
                                 var x_zero = model.xpos;
                                 var y_zero = model.ypos;
+
                                 arrow(ctx, x_zero, y_zero, x_zero, y_zero);
                             }
 
                             MouseArea {
                                 id: ma_canvas
                                 anchors.fill: parent
-//                                enabled: model.index === 0 ? repeater_canvas.is_ma1_active : repeater_canvas.is_ma2_active
-//                                hoverEnabled: enabled ? true : false
                                 hoverEnabled: true
                                 onClicked: {
                                     canvas.requestPaint();
@@ -255,6 +353,11 @@ Item {
                     ListModel {
                         id: point_model
                     }
+
+                    Settings {
+                        id: settings
+                        property alias datastore: rootItem.datastore
+                    }
                 }
 
                 MouseArea {
@@ -272,7 +375,6 @@ Item {
                     hoverEnabled: true
 
                     onWheel: {
-                        if(v1_button.vector_1_is_active || v2_button.vector_2_is_active) return;
 
                         if (wheel.angleDelta.y > 0)
                             slider.value = Number((slider.value + slider.stepSize).toFixed(1));
@@ -312,53 +414,6 @@ Item {
                 anchors.margins: 10
             }
 
-//            Button {
-//                id: v1_button
-//                height: 30
-//                property bool vector_1_is_active: false
-//                text: "Vector1"
-//                anchors.left: parent.left
-//                anchors.top: parent.top
-//                anchors.margins: 5
-//                highlighted: vector_1_is_active
-//                onClicked: {
-//                    if (point_model.count < 1 || v2_button.vector_2_is_active) return;
-//                    vector_1_is_active = !vector_1_is_active;
-//                    if (vector_1_is_active) {
-//                        ma_points.enabled = false;
-//                        repeater_canvas.is_ma1_active = true;
-//                    }
-//                    else {
-//                        ma_points.enabled = true;
-//                        repeater_canvas.is_ma1_active = false;
-//                    }
-//                }
-//            }
-
-//            Button {
-//                id: v2_button
-//                height: 30
-//                text: "Vector2"
-//                property bool vector_2_is_active: false
-//                anchors.left: parent.left
-//                anchors.top: v1_button.bottom
-//                anchors.margins: 5
-//                highlighted: vector_2_is_active
-//                onClicked: {
-//                    if (point_model.count < 2 || v1_button.vector_1_is_active) return;
-//                    vector_2_is_active = !vector_2_is_active;
-
-//                    if (vector_2_is_active) {
-//                        ma_points.enabled = false;
-//                        repeater_canvas.is_ma2_active = true;
-//                    }
-//                    else {
-//                        ma_points.enabled = true;
-//                        repeater_canvas.is_ma2_active = false;
-//                    }
-//                }
-//            }
-
             Slider {
                 id: slider
                 anchors.right: parent.right
@@ -397,15 +452,32 @@ Item {
         RowLayout {
             Layout.margins: 5
             spacing: 5
-            Button {
-                text: "Добавить карту..."
-                onClicked: { dialogAddMap.open(); }
+            Layout.maximumHeight: 60
 
-                Dialog { id: dialogAddMap; title: "Добавление новой карты"; contentItem: MapAddingDialog { id: dialogMapAddingRoot } }
+            ColumnLayout {
+                Layout.fillHeight: true
+                Layout.maximumWidth: 120
+                Button {
+                    id: btn_add_map
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    text: "Добавить карту..."
+                    onClicked: { dialogAddMap.open(); }
+
+                    Dialog { id: dialogAddMap; title: "Добавление новой карты"; contentItem: MapAddingDialog { id: dialogMapAddingRoot } }
+                }
+
+                Button {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    text: "Удалить карту"
+                    onClicked: { modelView.deleteCurrentMap(comboBoxMaps.currentIndex) }
+                }
             }
 
             ComboBox {
                 id: comboBoxMaps
+                Layout.fillHeight: true
                 model: modelView.mapNames
 
                 onCurrentIndexChanged: {
@@ -414,9 +486,64 @@ Item {
                 }
             }
 
-            Button {
-                text: "Удалить карту"
-                onClicked: { modelView.deleteCurrentMap(comboBoxMaps.currentIndex) }
+            ColumnLayout {
+                Layout.fillHeight: true
+                Layout.maximumWidth: 140
+                Layout.minimumWidth: 90
+
+                Rectangle {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    border.color: "gray"
+                    border.width: 1
+                    Text {
+                        anchors.fill: parent
+                        text: mapFrame.crossingX === 0 ? "P1-P2 X: за пределами" : "P1-P2 X: " + mapFrame.crossingX
+                        padding: 2
+                        verticalAlignment: Text.AlignVCenter
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillHeight: true
+                    Layout.fillWidth: true
+                    border.color: "gray"
+                    border.width: 1
+                    Text {
+                        anchors.fill: parent
+                        text: mapFrame.crossingY === 0 ? "P1-P2 Y: за пределами" : "P1-P2 Y: " + mapFrame.crossingY
+                        padding: 2
+                        verticalAlignment: Text.AlignVCenter
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+            }
+
+            Rectangle{
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+                Layout.minimumWidth: 100
+                ListView {
+                    id: dist_list
+                    anchors.fill: parent
+                    model: point_model
+                    delegate: Rectangle {
+                        width: parent.width
+                        border.color: "gray"
+                        border.width: 1
+                        height: comboBoxMaps.height/point_model.count
+                        Text {
+                            id: text_dist
+                            anchors.fill: parent
+                            property real dist: model.index === 0 ? mapFrame.distance_fromP1 : mapFrame.distance_fromP2
+                            text: "L от " + (model.index+1) + " модуля: " + dist + " м"
+                            padding: 2
+                            verticalAlignment: Text.AlignVCenter
+                            horizontalAlignment: Text.AlignLeft
+                        }
+                    }
+                }
             }
         }
     }

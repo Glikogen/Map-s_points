@@ -248,7 +248,7 @@ Rectangle {
 
                     modelView.addNewMap(textInputMapName.text, topLeftLatitude.text,
                                            topLeftLongitude.text, bottomRightLatitude.text,
-                                           bottomRightLongitude, fileDialogForMap.fileUrl);
+                                           bottomRightLongitude.text, fileDialogForMap.fileUrl);
                     dialogAddMap.close();
                 }
             }
