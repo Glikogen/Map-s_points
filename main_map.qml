@@ -162,7 +162,9 @@ Item {
 
                                 //построение линии с учетом смещения delta
                                 //999 в смещении - означает что нам не нужно ничего от этого модуля
-                                if (modelView.offsets.get(model.index).offset === 999) return;
+                                if (modelView.offsets.get(model.index).offset === 999) {
+                                    return;
+                                }
 
                                 var delta = modelView.offsets.get(model.index).offset * Math.PI/180;
                                 var x1 = (tox - fromx)*Math.cos(delta)-(toy-fromy)*Math.sin(delta)+fromx;
@@ -185,7 +187,9 @@ Item {
 
                                 //построение линии с учетом угла альфа
                                 //999 в углу - означает что нам не нужно направление на источник от этого модуля
-                                if (modelView.angles.get(model.index).angle === 999) return;
+                                if (modelView.angles.get(model.index).angle === 999) {
+                                    return;
+                                }
 
                                 var beta = modelView.angles.get(model.index).angle * Math.PI/180;
                                 var x2 = (x1 - fromx)*Math.cos(beta)-(y1-fromy)*Math.sin(beta)+fromx;
@@ -199,6 +203,7 @@ Item {
                                 var L = Math.sqrt(dx_temp * dx_temp + dy_temp * dy_temp);
                                 var newx = k * L * Math.cos(alfa);
                                 var newy = k * L * Math.sin(alfa);
+
                                 x2 = fromx + newx;
                                 y2 = fromy + newy;
 
@@ -219,6 +224,28 @@ Item {
 
                                 var X2 = point_model.get(1).xpos;
                                 var Y2 = point_model.get(1).ypos;
+
+                                /////////поиск новых точек
+                                console.log("X1 = " + X1);
+                                console.log("Y1 = " + Y1);
+
+                                console.log("X2 = " + X2);
+                                console.log("Y2 = " + Y2);
+
+                                var new_alfa1 = modelView.angles.get(0).angle/180*Math.PI;
+                                var new_alfa2 = modelView.angles.get(1).angle/180*Math.PI;
+
+                                var X1_end = L * Math.cos(new_alfa1);
+                                var Y1_end = L * Math.sin(new_alfa1);
+
+                                var X2_end = L * Math.cos(new_alfa2);
+                                var Y2_end = L * Math.sin(new_alfa2);
+                                console.log("X1_end = " + X1_end);
+                                console.log("Y1_end = " + Y1_end);
+
+                                console.log("X2_end = " + X2_end);
+                                console.log("Y2_end = " + Y2_end);
+                                ////////////конец поиска
 
                                 var m = 1/Math.tan(modelView.angles.get(0).angle/180*Math.PI);
                                 var n = 1/Math.tan(modelView.angles.get(1).angle/180*Math.PI);
@@ -303,6 +330,30 @@ Item {
                                     canvas.requestPaint();
                                 }
                             }
+
+                            MouseArea {
+                                id: ma_for_flickable
+                                anchors.fill: parent
+                                acceptedButtons: Qt.NoButton
+
+                                onPositionChanged: {
+                                    var propX = mouseX/mapImage.width;
+                                    var propY = mouseY/mapImage.height;
+
+                                    mapFrame.mouseXCoordinate = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
+                                    mapFrame.mouseYCoordinate = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
+                                }
+                                hoverEnabled: true
+
+                                onWheel: {
+
+                                    if (wheel.angleDelta.y > 0)
+                                        slider.value = Number((slider.value + slider.stepSize).toFixed(1));
+                                    else
+                                        slider.value = Number((slider.value - slider.stepSize).toFixed(1));
+                                    wheel.accepted = true;
+                                }
+                            }
                         }
                     }
 
@@ -357,30 +408,6 @@ Item {
                     Settings {
                         id: settings
                         property alias datastore: rootItem.datastore
-                    }
-                }
-
-                MouseArea {
-                    id: ma_for_flickable
-                    anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-
-                    onPositionChanged: {
-                        var propX = mouseX/mapFrame.contentWidth;
-                        var propY = mouseY/mapFrame.contentHeight;
-
-                        mapFrame.mouseXCoordinate = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
-                        mapFrame.mouseYCoordinate = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
-                    }
-                    hoverEnabled: true
-
-                    onWheel: {
-
-                        if (wheel.angleDelta.y > 0)
-                            slider.value = Number((slider.value + slider.stepSize).toFixed(1));
-                        else
-                            slider.value = Number((slider.value - slider.stepSize).toFixed(1));
-                        wheel.accepted = true;
                     }
                 }
             }
@@ -498,7 +525,8 @@ Item {
                     border.width: 1
                     Text {
                         anchors.fill: parent
-                        text: mapFrame.crossingX === 0 ? "P1-P2 X: за пределами" : "P1-P2 X: " + mapFrame.crossingX
+                        property string text_value: mapFrame.crossingX === 0 ? "P1-P2 X: за пределами" : "P1-P2 X: " + mapFrame.crossingX
+                        text: text_value
                         padding: 2
                         verticalAlignment: Text.AlignVCenter
                         horizontalAlignment: Text.AlignHCenter
@@ -512,7 +540,8 @@ Item {
                     border.width: 1
                     Text {
                         anchors.fill: parent
-                        text: mapFrame.crossingY === 0 ? "P1-P2 Y: за пределами" : "P1-P2 Y: " + mapFrame.crossingY
+                        property string text_value: mapFrame.crossingY === 0 ? "P1-P2 Y: за пределами" : "P1-P2 Y: " + mapFrame.crossingY
+                        text: text_value
                         padding: 2
                         verticalAlignment: Text.AlignVCenter
                         horizontalAlignment: Text.AlignHCenter
@@ -521,6 +550,7 @@ Item {
             }
 
             Rectangle{
+                id: rect_for_list
                 Layout.fillHeight: true
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
@@ -529,7 +559,7 @@ Item {
                     anchors.fill: parent
                     model: point_model
                     delegate: Rectangle {
-                        width: parent.width
+                        width: rect_for_list.width
                         border.color: "gray"
                         border.width: 1
                         height: comboBoxMaps.height/point_model.count
@@ -537,7 +567,8 @@ Item {
                             id: text_dist
                             anchors.fill: parent
                             property real dist: model.index === 0 ? mapFrame.distance_fromP1 : mapFrame.distance_fromP2
-                            text: "L от " + (model.index+1) + " модуля: " + dist + " м"
+                            property string text_value: "L от " + (model.index+1) + " модуля: " + dist + " м"
+                            text: text_value
                             padding: 2
                             verticalAlignment: Text.AlignVCenter
                             horizontalAlignment: Text.AlignLeft
