@@ -10,18 +10,21 @@ import QtQuick.Dialogs 1.2
 import ModelView 1.0
 import Qt.labs.settings 1.1 //с версии QT 6.5 больше не поддерживаеьмся
 
+
 Item {
     id: rootItem
 
     function setAngles(angles, bias){
         for(var i = 0; i < angles.length; i++){
+            var is_angle_valid = true;
+            if (bias[i] === 999 || angles[i] === 999) is_angle_valid = false;
             if (modelView.angles.count === i) {
-                modelView.offsets.append({ "offset": bias[i] });
-                modelView.angles.append({ "angle": angles[i] });
+                modelView.angles.append({ "offset": bias[i], "angle": angles[i], "flag": is_angle_valid });
             }
             else  {
-                modelView.offsets.get(i).offset = bias[i];
+                modelView.angles.get(i).offset = bias[i];
                 modelView.angles.get(i).angle = angles[i];
+                modelView.angles.get(i).flag = is_angle_valid;
             }
 
             modelView.angle = angles[i];
@@ -29,8 +32,10 @@ Item {
     }
 
     property string datastore: ""
+    property real map_index: 0
 
     Component.onCompleted: {
+        comboBoxMaps.currentIndex = map_index;
         if (datastore){
             point_model.clear();
             var datamodel = JSON.parse(datastore);
@@ -39,6 +44,7 @@ Item {
     }
 
     Component.onDestruction: {
+        map_index = comboBoxMaps.currentIndex;
         var datamodel = [];
         for(var i = 0; i < point_model.count; i++) datamodel.push(point_model.get(i));
         datastore = JSON.stringify(datamodel);
@@ -58,7 +64,7 @@ Item {
         //углы
         property real angle
         property ListModel angles: ListModel { }
-        property ListModel offsets: ListModel { }
+//        property ListModel offsets: ListModel { }
 
         onSendMapImageData: (map_name, top_left_latitude, top_left_longitude, bottom_right_latitude, bottom_right_longitude, path_to_image) => {
                                 mapName = map_name;
@@ -68,6 +74,17 @@ Item {
                                 bottomRightLongitude = bottom_right_longitude;
                                 pathToImage = path_to_image;
                             }
+    }
+
+    ColorDialog {
+        id: colorDialog
+        title: "Выберите цвет"
+        onAccepted: {
+            console.log("Выбран: " + colorDialog.color)
+        }
+        onRejected: {
+            console.log("Отменено")
+        }
     }
 
     ColumnLayout{
@@ -108,9 +125,11 @@ Item {
                 property real mouseXCoordinate: zeroPointLongitude.toFixed(5)
                 property real mouseYCoordinate: zeroPointLatitude.toFixed(5)
 
+
+                //КОСТЫЛЬ ДЛЯ 2х МОДУЛЕЙ
                 //координаты пересечения направлений от первого и второго модуля
-                property real crossingX: 0
-                property real crossingY: 0
+                property real crossingX: -1
+                property real crossingY: -1
 
                 //дистанция от первого и второго модулей до точки пересечения
                 property real distance_fromP1: -1
@@ -157,16 +176,21 @@ Item {
                                 var k = 100;
 
                                 //построение основной стрелки
-                                toy = 0;
+                                toy = fromy*0.6;
                                 const dx = tox - fromx;
 
                                 //построение линии с учетом смещения delta
                                 //999 в смещении - означает что нам не нужно ничего от этого модуля
-                                if (modelView.offsets.get(model.index).offset === 999) {
+                                if (modelView.angles.get(model.index).offset === 999) {
+                                    mapFrame.crossingX = -1;
+                                    mapFrame.crossingY = -1;
+                                    mapFrame.distance_fromP1 = -1;
+                                    mapFrame.distance_fromP2 = -1;
                                     return;
                                 }
 
-                                var delta = modelView.offsets.get(model.index).offset * Math.PI/180;
+                                context.strokeStyle = colorDialog.color;
+                                var delta = modelView.angles.get(model.index).offset * Math.PI/180;
                                 var x1 = (tox - fromx)*Math.cos(delta)-(toy-fromy)*Math.sin(delta)+fromx;
                                 var y1 = (tox - fromx)*Math.sin(delta)+(toy-fromy)*Math.cos(delta)+fromy;
                                 var dx1 = x1 - fromx;
@@ -188,6 +212,10 @@ Item {
                                 //построение линии с учетом угла альфа
                                 //999 в углу - означает что нам не нужно направление на источник от этого модуля
                                 if (modelView.angles.get(model.index).angle === 999) {
+                                    mapFrame.crossingX = -1;
+                                    mapFrame.crossingY = -1;
+                                    mapFrame.distance_fromP1 = -1;
+                                    mapFrame.distance_fromP2 = -1;
                                     return;
                                 }
 
@@ -216,8 +244,15 @@ Item {
                                 context.lineTo(x2, y2);
                                 context.stroke();
 
+                                if (point_model.count < 2) {
+                                    mapFrame.crossingX = -1;
+                                    mapFrame.crossingY = -1;
+                                    mapFrame.distance_fromP1 = -1;
+                                    mapFrame.distance_fromP2 = -1;
+                                    return;
+                                }
 
-                                if (point_model.count < 2) return;
+                                //КОСТЫЛЬ ДЛЯ 2х МОДУЛЕЙ
                                 //пока что работает только с первым и вторым модулями!!!
                                 var X1 = point_model.get(0).xpos;
                                 var Y1 = point_model.get(0).ypos;
@@ -225,41 +260,73 @@ Item {
                                 var X2 = point_model.get(1).xpos;
                                 var Y2 = point_model.get(1).ypos;
 
-                                /////////поиск новых точек
-                                console.log("X1 = " + X1);
-                                console.log("Y1 = " + Y1);
-
-                                console.log("X2 = " + X2);
-                                console.log("Y2 = " + Y2);
-
-                                var new_alfa1 = modelView.angles.get(0).angle/180*Math.PI;
-                                var new_alfa2 = modelView.angles.get(1).angle/180*Math.PI;
-
-                                var X1_end = L * Math.cos(new_alfa1);
-                                var Y1_end = L * Math.sin(new_alfa1);
-
-                                var X2_end = L * Math.cos(new_alfa2);
-                                var Y2_end = L * Math.sin(new_alfa2);
-                                console.log("X1_end = " + X1_end);
-                                console.log("Y1_end = " + Y1_end);
-
-                                console.log("X2_end = " + X2_end);
-                                console.log("Y2_end = " + Y2_end);
-                                ////////////конец поиска
-
                                 var m = 1/Math.tan(modelView.angles.get(0).angle/180*Math.PI);
                                 var n = 1/Math.tan(modelView.angles.get(1).angle/180*Math.PI);
                                 var x = (m * X1 + Y1 - Y2 - n * X2)/(m-n);
                                 var y = -m*(x - X1) + Y1;
+
+                                /////////поиск новых точек
+
+                                var new_alfa1 = modelView.angles.get(0).angle;
+                                var new_alfa2 = modelView.angles.get(1).angle;
+//                                var alfa1_inRad = new_alfa1/180*Math.PI;
+//                                var alfa2_inRad = new_alfa2/180*Math.PI;
+
+//                                var DX1 = Math.abs(X1 - x);
+//                                var DY1 = Math.abs(Y1 - y);
+//                                var LEN1 = Math.sqrt(DX1 * DX1 + DY1 * DY1);
+//                                var DX2 = Math.abs(X2 - x);
+//                                var DY2 = Math.abs(Y2 - y);
+//                                var LEN2 = Math.sqrt(DX2 * DX2 + DY2 * DY2);
+
+//                                var X1_end = LEN1 * Math.sin(alfa1_inRad) + X1;
+//                                var Y1_end = Math.abs(LEN1 * Math.cos(alfa1_inRad) - Y1);
+
+//                                var X2_end = LEN2 * Math.sin(alfa2_inRad) + X2;
+//                                var Y2_end = Math.abs(LEN2 * Math.cos(alfa2_inRad) - Y2);
+
+//                                ////////////конец поиска
+//                                /////проверка на пересечение лучей
+//                                var BAx = X1_end - X1;
+//                                var BAy = Y1_end - Y1;
+
+//                                var DCx = X2_end - X2;
+//                                var DCy = Y2_end - Y2;
+
+//                                var K2 = ((X1_end-X1)*(Y1-Y2)-Y1_end*X2+Y1_end*X1+Y1*X2-Y1*X1)/((X2_end-X2)*(Y1_end-Y1)-(Y2_end-Y2)*(X1_end-X1));
+//                                var K1 = (X2-X1+(X2_end-X2)*K2)/(X1_end-X1);
+
+//                                var K2 = (BAy*X1+X2*BAx-Y1*BAx-X2*BAy)/(BAy*DCx-DCy*BAx);
+//                                var K2 = -1*(BAy*X1+X2*BAx-Y1*BAx-X2*BAy)/(-BAy*DCx+DCy*BAx);
+//                                var K1 = (DCx*K2+X2-X1)/BAx;
+
+
+                                var first_ray_toTop = new_alfa1 < 90 || new_alfa1 > 269 ? true : false;
+                                var second_ray_toTop = new_alfa2 < 90 || new_alfa2 > 269 ? true : false;
+                                var is_crossing_point_real = true;
+
+                                //если первый луч смотрит вверх и точка пересечения лежит ниже начала луча
+                                if (first_ray_toTop && y > Y1) is_crossing_point_real = false;
+                                //если второй луч смотрит вверх и точка пересечения лежит ниже начала луча
+                                if (second_ray_toTop && y > Y2) is_crossing_point_real = false;
+                                //если первый луч смотрит вниз и точка пересечения лежит выше начала луча
+                                if (!first_ray_toTop && y < Y1) is_crossing_point_real = false;
+                                //если второй луч смотрит вверх и точка пересечения лежит ниже начала луча
+                                if (!second_ray_toTop && y < Y2) is_crossing_point_real = false;
+
+//                                console.log("is_crossing_point_real = " + is_crossing_point_real);
+                                /////конец проверки
+
 
                                 var propX = Math.abs(x)/mapImage.width;
                                 var propY = Math.abs(y)/mapImage.height;
 
                                 //если точка пересечения лежит за пределами карты
                                 if(x < 0 || y < 0 || x > mapImage.width || y > mapImage.height) {
-                                    mapFrame.crossingX = 0;
-                                    mapFrame.crossingY = 0;
+                                    mapFrame.crossingX = -1;
+                                    mapFrame.crossingY = -1;
                                 } else {
+
                                     mapFrame.crossingX = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
                                     mapFrame.crossingY = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
 
@@ -272,6 +339,20 @@ Item {
                                     mapFrame.distance_fromP1 = (getDistance(p1Y, p1X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
                                     mapFrame.distance_fromP2 = (getDistance(p2Y, p2X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
                                 }
+
+                                //КОСТЫЛЬ ДЛЯ 2х МОДУЛЕЙ
+                                if (modelView.angles.get(0).flag === false || modelView.angles.get(1).flag === false || !is_crossing_point_real) {
+                                    mapFrame.crossingX = -1;
+                                    mapFrame.crossingY = -1;
+                                    mapFrame.distance_fromP1 = -1;
+                                    mapFrame.distance_fromP2 = -1;
+                                    return;
+                                }
+
+                                //выделяем точку пересечения пожирнее
+                                context.beginPath();
+                                context.arc(x, y, 3, 0, 2 * Math.PI);
+                                context.stroke();
                             }
 
                             //функция вычисления дистанции по двум координатам
@@ -330,30 +411,30 @@ Item {
                                     canvas.requestPaint();
                                 }
                             }
+                        }
+                    }
 
-                            MouseArea {
-                                id: ma_for_flickable
-                                anchors.fill: parent
-                                acceptedButtons: Qt.NoButton
+                    MouseArea {
+                        id: ma_for_flickable
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
 
-                                onPositionChanged: {
-                                    var propX = mouseX/mapImage.width;
-                                    var propY = mouseY/mapImage.height;
+                        onPositionChanged: {
+                            var propX = mouseX/mapImage.width;
+                            var propY = mouseY/mapImage.height;
 
-                                    mapFrame.mouseXCoordinate = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
-                                    mapFrame.mouseYCoordinate = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
-                                }
-                                hoverEnabled: true
+                            mapFrame.mouseXCoordinate = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
+                            mapFrame.mouseYCoordinate = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
+                        }
+                        hoverEnabled: true
 
-                                onWheel: {
+                        onWheel: {
 
-                                    if (wheel.angleDelta.y > 0)
-                                        slider.value = Number((slider.value + slider.stepSize).toFixed(1));
-                                    else
-                                        slider.value = Number((slider.value - slider.stepSize).toFixed(1));
-                                    wheel.accepted = true;
-                                }
-                            }
+                            if (wheel.angleDelta.y > 0)
+                                slider.value = Number((slider.value + slider.stepSize).toFixed(1));
+                            else
+                                slider.value = Number((slider.value - slider.stepSize).toFixed(1));
+                            wheel.accepted = true;
                         }
                     }
 
@@ -408,6 +489,7 @@ Item {
                     Settings {
                         id: settings
                         property alias datastore: rootItem.datastore
+                        property alias map_index: rootItem.map_index
                     }
                 }
             }
@@ -439,6 +521,24 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.margins: 10
+            }
+
+            Button {
+                id: btn_color_choosing
+                anchors.margins: 10
+                anchors.left: parent.left
+                anchors.top: parent.top
+                height: 30
+                width: 30
+                background: Rectangle {
+                    radius: 15
+                    opacity: 0.5
+                    color: btn_color_choosing.down ? "grey" : colorDialog.color
+                }
+
+                onClicked: {
+                    colorDialog.open();
+                }
             }
 
             Slider {
@@ -525,7 +625,7 @@ Item {
                     border.width: 1
                     Text {
                         anchors.fill: parent
-                        property string text_value: mapFrame.crossingX === 0 ? "P1-P2 X: за пределами" : "P1-P2 X: " + mapFrame.crossingX
+                        property string text_value: mapFrame.crossingX === -1 ? "P1-P2 X: за пределами" : "P1-P2 X: " + mapFrame.crossingX
                         text: text_value
                         padding: 2
                         verticalAlignment: Text.AlignVCenter
@@ -540,7 +640,7 @@ Item {
                     border.width: 1
                     Text {
                         anchors.fill: parent
-                        property string text_value: mapFrame.crossingY === 0 ? "P1-P2 Y: за пределами" : "P1-P2 Y: " + mapFrame.crossingY
+                        property string text_value: mapFrame.crossingY === -1 ? "P1-P2 Y: за пределами" : "P1-P2 Y: " + mapFrame.crossingY
                         text: text_value
                         padding: 2
                         verticalAlignment: Text.AlignVCenter
@@ -568,7 +668,7 @@ Item {
                             anchors.fill: parent
                             property real dist: model.index === 0 ? mapFrame.distance_fromP1 : mapFrame.distance_fromP2
                             property string text_value: "L от " + (model.index+1) + " модуля: " + dist + " м"
-                            text: text_value
+                            text: mapFrame.distance_fromP1 === -1 || mapFrame.distance_fromP2 === -1 ? "не определена" : text_value
                             padding: 2
                             verticalAlignment: Text.AlignVCenter
                             horizontalAlignment: Text.AlignLeft
