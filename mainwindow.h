@@ -21,6 +21,7 @@ public:
     ~MainWindow();
 
     int i = 0;
+
     QVector<QVector<double>> angles;
     QVector<QVector<double>> offsets;
 signals:

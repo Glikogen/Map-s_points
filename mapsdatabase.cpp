@@ -21,6 +21,7 @@ MapImageData *MapsDataBase::getData(int id)
 {
     MapImageData *mapImageData = nullptr;
     id++;//увеличиваем на 1, так как PRIMARY KEY начинается с 1
+
     //вытянусть с базы данных инфу и засунуть в объект
     QSqlQuery query(QSqlDatabase::database("mapImages1.db"));
     QString strF = "SELECT * from Maps WHERE ID=%1";
@@ -31,7 +32,7 @@ MapImageData *MapsDataBase::getData(int id)
     }
     mapImageData = new MapImageData;
     QSqlRecord rec = query.record();
-    qDebug() << "id:" << id << "\nну и - " << query.first();
+
     mapImageData->MapName = query.value(rec.indexOf("MapName")).toString();
     mapImageData->Top_left_latitude = query.value(rec.indexOf("Top_left_latitude")).toReal();
     mapImageData->Top_left_longitude = query.value(rec.indexOf("Top_left_longitude")).toReal();
@@ -46,7 +47,7 @@ MapImageData *MapsDataBase::getData(int id)
 
 void MapsDataBase::addData(MapImageData *data)
 {
-    //добавить страчку в базу данных
+    //добавить строчку в базу данных
     QSqlQuery query(QSqlDatabase::database("mapImages1.db"));
     QString strF = "INSERT INTO Maps (MapName, Top_left_latitude, Top_left_longitude, Bottom_right_latitude, Bottom_right_longitude, PathToImage)"
         "VALUES('%1', '%2', '%3', '%4', '%5', '%6');";
@@ -63,7 +64,6 @@ void MapsDataBase::addData(MapImageData *data)
 void MapsDataBase::deleteData(int id)
 {
     id++;//увеличиваем на 1, так как PRIMARY KEY начинается с 1
-    //вытянусть с базы данных инфу и засунунть в объект
     QSqlQuery query(QSqlDatabase::database("mapImages1.db"));
     QString strF = "DELETE FROM Maps WHERE ID=%1;";
     QString str = strF.arg(id);

@@ -15,6 +15,7 @@
 #include <QResource>
 #include "mapsdatabase.h"
 
+//связующий класс для обмена данных между БД и графическим представлением
 class ModelView : public QObject
 {
     Q_OBJECT

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QtSql>
 
+//Класс для добавляемых карт, сохраняемых в базу данных
 class MapImageData : public QObject {
     Q_OBJECT
 public:
@@ -16,6 +17,7 @@ public:
     QString PathToImage;
 };
 
+//Класс-обертка для базы данных для добавленных карт
 class MapsDataBase : public QObject
 {
     Q_OBJECT

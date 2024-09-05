@@ -8,6 +8,7 @@ import QtQuick.Dialogs 1.2
 import QtQuick.Controls.Styles 1.4
 import Qt.labs.qmlmodels 1.0
 
+//Форма для диалогового окна для добавления карты
 Rectangle {
     id: dialogMapAddingRoot
 
@@ -228,7 +229,7 @@ Rectangle {
                         messageDialog.open();
                         return;
                     }
-                    if (parseFloat(bottomRightLongitude.text) < 0 || parseFloat(bottomRightLongitude.text) > 90) {
+                    if (parseFloat(bottomRightLongitude.text) < 0 || parseFloat(bottomRightLongitude.text) > 180) {
                         messageDialog.text = "Введенное значение долготы правого нижнего угла лежит за пределами от 0° до 180°";
                         messageDialog.open();
                         return;

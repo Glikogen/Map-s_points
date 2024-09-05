@@ -12,49 +12,40 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->quickWidget->setSource(QUrl("qrc:/main_map.qml"));
     ui->quickWidget->show();
-    QObject *rootObj = qobject_cast<QObject*>(ui->quickWidget->rootObject());
+    QObject *rootObj = qobject_cast<QObject*>(ui->quickWidget->rootObject()); //получаем корневой элемент qml формы
 
-    //углы для теста
-//    angles = {{45, 330, 30, 90},
-//              {45, 330, 30, 90},
-//              {45, 330, 30, 90},
-//              {45, 330, 30, 90},
-//              {145, 100, 30, 90},
-//              {145, 100, 30, 90},
-//              {145, 100, 30, 90},
-//              {145, 100, 30, 90}};
+    ////test
+    //углы для теста, первый модуль заполняется от 0 до 359, второй всегда 315
+    int amount = 360;
+    int stepSize = 1;
+    //делю amount на stepSize получаю количество углов
+    angles = QVector<QVector<double>>(amount/stepSize);
+    for(int k = 0; k < amount/stepSize; k++){
+        int koef = stepSize; //это чтобы задать конкретный угол
+        int val = k * koef;
+        angles[k] = QVector<double>{static_cast<double>(val), 315};
+    }
+    //смещения, заполняется нулями
+    offsets = QVector<QVector<double>>(amount/stepSize);
+    for(int k = 0; k < amount/stepSize; k++) { offsets[k] = QVector<double>(2); }
+    ////test
 
-//    angles = {{330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90},
-//              {330, 45, 999, 90}};
-
-    //смещения
-    offsets = {{0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0},
-              {0, 0, 0, 0}};
+    //тут происходит отправление углов и смещений по тику таймера
     QTimer *timer = new QTimer();
-    timer->setInterval(1000);
+    timer->setInterval(500);
     if (angles.count() > 0 && offsets.count() > 0) connect(timer, &QTimer::timeout, [=]() {
         emit sendAngle(QVariant::fromValue(angles[i]), QVariant::fromValue(offsets[i]));
     });
     connect(timer, &QTimer::timeout, this, &MainWindow::changeTestAnglesIndex);
     timer->start();
 
+    //тут сигнал с отправленными углами привязывается к функции из main_map.qml
     connect(this, &MainWindow::sendAngle, [=](QVariant angle, QVariant bias) {
         QMetaObject::invokeMethod(rootObj, "setAngles", Q_ARG(QVariant, angle), Q_ARG(QVariant, bias));
     });
-}
 
+
+}
 
 void MainWindow::changeTestAnglesIndex()
 {

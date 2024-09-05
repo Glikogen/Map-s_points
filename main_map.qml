@@ -25,17 +25,19 @@ Item {
                 modelView.angles.get(i).offset = bias[i];
                 modelView.angles.get(i).angle = angles[i];
                 modelView.angles.get(i).flag = is_angle_valid;
-            }
 
-            modelView.angle = angles[i];
+                modelView.angle = angles[i];
+            }
         }
     }
 
     property string datastore: ""
     property real map_index: 0
+    property color color: "grey"
 
     Component.onCompleted: {
         comboBoxMaps.currentIndex = map_index;
+        colorDialog.color = color;
         if (datastore){
             point_model.clear();
             var datamodel = JSON.parse(datastore);
@@ -45,6 +47,7 @@ Item {
 
     Component.onDestruction: {
         map_index = comboBoxMaps.currentIndex;
+        color = colorDialog.color;
         var datamodel = [];
         for(var i = 0; i < point_model.count; i++) datamodel.push(point_model.get(i));
         datastore = JSON.stringify(datamodel);
@@ -63,8 +66,8 @@ Item {
 
         //углы
         property real angle
-        property ListModel angles: ListModel { }
-//        property ListModel offsets: ListModel { }
+        property ListModel angles: ListModel { }//список углов
+        property ListModel points: ListModel { }//трекинг точек пересечения
 
         onSendMapImageData: (map_name, top_left_latitude, top_left_longitude, bottom_right_latitude, bottom_right_longitude, path_to_image) => {
                                 mapName = map_name;
@@ -170,8 +173,8 @@ Item {
                                 canvas.requestPaint();
                             }
 
-                            // Code to draw a simple arrow on TypeScript canvas got from https://stackoverflow.com/a/64756256/867349
-                            function arrow(context, fromx, fromy, tox, toy) {
+                            //функция, чтобы нарисовать все обьекты на карте
+                            function draw_All_Elements(context, fromx, fromy, tox, toy) {
 
                                 var k = 100;
 
@@ -224,7 +227,7 @@ Item {
                                 var y2 = (x1 - fromx)*Math.sin(beta)+(y1-fromy)*Math.cos(beta)+fromy;
 
                                 var alfa = Math.atan2((y2 - fromy),(x2 - fromx));
-                                var tempAlfa = alfa *180.0/Math.PI;
+                                var tempAlfa = alfa * 180.0 / Math.PI;
                                 var mainAlfa = tempAlfa > 0 ? tempAlfa : 360 + tempAlfa;
                                 var dx_temp = Math.abs(x2 - fromx);
                                 var dy_temp = Math.abs(y2 - fromy);
@@ -253,7 +256,7 @@ Item {
                                 }
 
                                 //КОСТЫЛЬ ДЛЯ 2х МОДУЛЕЙ
-                                //пока что работает только с первым и вторым модулями!!!
+                                //работает только с первым и вторым модулями!!!
                                 var X1 = point_model.get(0).xpos;
                                 var Y1 = point_model.get(0).ypos;
 
@@ -262,47 +265,17 @@ Item {
 
                                 var m = 1/Math.tan(modelView.angles.get(0).angle/180*Math.PI);
                                 var n = 1/Math.tan(modelView.angles.get(1).angle/180*Math.PI);
+
+                                ///точка пересечения
                                 var x = (m * X1 + Y1 - Y2 - n * X2)/(m-n);
                                 var y = -m*(x - X1) + Y1;
 
-                                /////////поиск новых точек
 
                                 var new_alfa1 = modelView.angles.get(0).angle;
                                 var new_alfa2 = modelView.angles.get(1).angle;
-//                                var alfa1_inRad = new_alfa1/180*Math.PI;
-//                                var alfa2_inRad = new_alfa2/180*Math.PI;
 
-//                                var DX1 = Math.abs(X1 - x);
-//                                var DY1 = Math.abs(Y1 - y);
-//                                var LEN1 = Math.sqrt(DX1 * DX1 + DY1 * DY1);
-//                                var DX2 = Math.abs(X2 - x);
-//                                var DY2 = Math.abs(Y2 - y);
-//                                var LEN2 = Math.sqrt(DX2 * DX2 + DY2 * DY2);
-
-//                                var X1_end = LEN1 * Math.sin(alfa1_inRad) + X1;
-//                                var Y1_end = Math.abs(LEN1 * Math.cos(alfa1_inRad) - Y1);
-
-//                                var X2_end = LEN2 * Math.sin(alfa2_inRad) + X2;
-//                                var Y2_end = Math.abs(LEN2 * Math.cos(alfa2_inRad) - Y2);
-
-//                                ////////////конец поиска
-//                                /////проверка на пересечение лучей
-//                                var BAx = X1_end - X1;
-//                                var BAy = Y1_end - Y1;
-
-//                                var DCx = X2_end - X2;
-//                                var DCy = Y2_end - Y2;
-
-//                                var K2 = ((X1_end-X1)*(Y1-Y2)-Y1_end*X2+Y1_end*X1+Y1*X2-Y1*X1)/((X2_end-X2)*(Y1_end-Y1)-(Y2_end-Y2)*(X1_end-X1));
-//                                var K1 = (X2-X1+(X2_end-X2)*K2)/(X1_end-X1);
-
-//                                var K2 = (BAy*X1+X2*BAx-Y1*BAx-X2*BAy)/(BAy*DCx-DCy*BAx);
-//                                var K2 = -1*(BAy*X1+X2*BAx-Y1*BAx-X2*BAy)/(-BAy*DCx+DCy*BAx);
-//                                var K1 = (DCx*K2+X2-X1)/BAx;
-
-
-                                var first_ray_toTop = new_alfa1 < 90 || new_alfa1 > 269 ? true : false;
-                                var second_ray_toTop = new_alfa2 < 90 || new_alfa2 > 269 ? true : false;
+                                var first_ray_toTop = new_alfa1 < 90 || new_alfa1 > 270 ? true : false;
+                                var second_ray_toTop = new_alfa2 < 90 || new_alfa2 > 270 ? true : false;
                                 var is_crossing_point_real = true;
 
                                 //если первый луч смотрит вверх и точка пересечения лежит ниже начала луча
@@ -314,9 +287,27 @@ Item {
                                 //если второй луч смотрит вверх и точка пересечения лежит ниже начала луча
                                 if (!second_ray_toTop && y < Y2) is_crossing_point_real = false;
 
-//                                console.log("is_crossing_point_real = " + is_crossing_point_real);
-                                /////конец проверки
 
+                                //пока поменяем цвет точки пересечения
+                                var color = colorDialog.color;
+                                var max_color = Math.max(color.r, color.g, color.b);
+                                if (max_color === color.r) color = "#00FFFF";
+                                if (max_color === color.g) color = "#FF00FF";
+                                if (max_color === color.b) color = "#FFFF00";
+                                context.strokeStyle = color;
+
+                                //трекинг: если он активирован, то рисуем добавленные точки пересечения
+                                if (btn_tracking.isTracking) {
+                                    context.fillStyle = color;
+                                    for(var i = 0; i < modelView.points.count; i++) {
+                                        //рисование прошлых точек пересечения
+                                        context.beginPath();
+                                        var radius = mapImage.scale < 1.0 ? 3 : 4/mapImage.scale; //меняем радиус в зависимости от масштаба карты
+                                        context.arc(modelView.points.get(i).x, modelView.points.get(i).y, radius, 0, 2 * Math.PI);
+                                        context.fill();
+                                        context.stroke();
+                                    }
+                                }
 
                                 var propX = Math.abs(x)/mapImage.width;
                                 var propY = Math.abs(y)/mapImage.height;
@@ -349,9 +340,13 @@ Item {
                                     return;
                                 }
 
-                                //выделяем точку пересечения пожирнее
+                                if (btn_tracking.isTracking) modelView.points.append({ "x": x, "y": y });
+//                                console.log("angle1 = " + modelView.angles.get(0).angle + "; angle2 = " + modelView.angles.get(1).angle);
+
+                                //рисование точки пересечения
                                 context.beginPath();
-                                context.arc(x, y, 3, 0, 2 * Math.PI);
+                                radius = mapImage.scale < 1.0 ? 3 : 4/mapImage.scale; //меняем радиус в зависимости от масштаба карты
+                                context.arc(x, y, radius, 0, 2 * Math.PI);
                                 context.stroke();
                             }
 
@@ -391,16 +386,15 @@ Item {
                             }
 
                             onPaint: {
-                                // Get the canvas context
+                                //Получаем контекст рамки
                                 if (point_model.count === 0) return;
                                 var ctx = getContext("2d");
                                 ctx.reset();
-                                // Draw an arrow on given context starting at position (0, 0) -- top left corner up to position (mouseX, mouseY)
-                                //   determined by mouse coordinates position
+
                                 var x_zero = model.xpos;
                                 var y_zero = model.ypos;
 
-                                arrow(ctx, x_zero, y_zero, x_zero, y_zero);
+                                draw_All_Elements(ctx, x_zero, y_zero, x_zero, y_zero);
                             }
 
                             MouseArea {
@@ -476,6 +470,7 @@ Item {
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
+                                    modelView.points.clear();
                                     point_model.remove(index);
                                 }
                             }
@@ -490,6 +485,7 @@ Item {
                         id: settings
                         property alias datastore: rootItem.datastore
                         property alias map_index: rootItem.map_index
+                        property alias color: rootItem.color
                     }
                 }
             }
@@ -497,6 +493,7 @@ Item {
             Text {
                 id: textMouseX
                 text: "X: " + mapFrame.mouseXCoordinate
+                color: colorDialog.color
                 anchors.bottom: textMouseY.top
                 anchors.left: parent.left
                 anchors.margins: 5
@@ -506,6 +503,7 @@ Item {
             Text {
                 id: textMouseY
                 text: "Y: " + mapFrame.mouseYCoordinate
+                color: colorDialog.color
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.margins: 5
@@ -533,11 +531,36 @@ Item {
                 background: Rectangle {
                     radius: 15
                     opacity: 0.5
-                    color: btn_color_choosing.down ? "grey" : colorDialog.color
+                    color: btn_color_choosing.down ? rootItem.color : colorDialog.color
                 }
 
                 onClicked: {
                     colorDialog.open();
+                }
+            }
+
+            Button {
+                id: btn_tracking
+                property bool isTracking: false
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 10
+                text: !isTracking? "▶" : "⏹"
+                background: Rectangle {
+                    border.width: !btn_tracking.isTracking? 1 : 3
+                    border.color: !btn_tracking.isTracking? "black" : "lightblue"
+                    color: !btn_tracking.isTracking? "lightgray" : "gray"
+                    radius: 10
+                    opacity: 0.6
+                }
+                onClicked: {
+                    isTracking = !isTracking;
+
+                    if (!isTracking) {
+//                        grabToImage()
+
+                        modelView.points.clear();
+                    }
                 }
             }
 
@@ -621,7 +644,7 @@ Item {
                 Rectangle {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
-                    border.color: "gray"
+                    border.color: "grey"
                     border.width: 1
                     Text {
                         anchors.fill: parent
@@ -636,7 +659,7 @@ Item {
                 Rectangle {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
-                    border.color: "gray"
+                    border.color: "grey"
                     border.width: 1
                     Text {
                         anchors.fill: parent
@@ -660,7 +683,7 @@ Item {
                     model: point_model
                     delegate: Rectangle {
                         width: rect_for_list.width
-                        border.color: "gray"
+                        border.color: "grey"
                         border.width: 1
                         height: comboBoxMaps.height/point_model.count
                         Text {
