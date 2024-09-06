@@ -32,7 +32,7 @@ MapImageData *MapsDataBase::getData(int id)
     }
     mapImageData = new MapImageData;
     QSqlRecord rec = query.record();
-
+    query.first();
     mapImageData->MapName = query.value(rec.indexOf("MapName")).toString();
     mapImageData->Top_left_latitude = query.value(rec.indexOf("Top_left_latitude")).toReal();
     mapImageData->Top_left_longitude = query.value(rec.indexOf("Top_left_longitude")).toReal();

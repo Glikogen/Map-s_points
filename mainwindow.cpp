@@ -17,7 +17,7 @@ MainWindow::MainWindow(QWidget *parent)
     ////test
     //углы для теста, первый модуль заполняется от 0 до 359, второй всегда 315
     int amount = 360;
-    int stepSize = 1;
+    int stepSize = 10;//можно менять этот параметр, тогда скачок угла будет stepSize
     //делю amount на stepSize получаю количество углов
     angles = QVector<QVector<double>>(amount/stepSize);
     for(int k = 0; k < amount/stepSize; k++){

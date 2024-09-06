@@ -14,11 +14,12 @@ import Qt.labs.settings 1.1 //с версии QT 6.5 больше не подд�
 Item {
     id: rootItem
 
+    //функция (слот) для приема углов и смещений из MainWindow
     function setAngles(angles, bias){
         for(var i = 0; i < angles.length; i++){
             var is_angle_valid = true;
             if (bias[i] === 999 || angles[i] === 999) is_angle_valid = false;
-            if (modelView.angles.count === i) {
+            if (modelView.angles.count === i) { //если в Списке углов 0 обьектов, то добавить первый обьект с соответствующими свойствами
                 modelView.angles.append({ "offset": bias[i], "angle": angles[i], "flag": is_angle_valid });
             }
             else  {
@@ -31,11 +32,13 @@ Item {
         }
     }
 
+    //эти свойства сохраняют свои значения при закрытии программы и заполняются при открытии
     property string datastore: ""
     property real map_index: 0
     property color color: "grey"
 
     Component.onCompleted: {
+        //при запуске программы указываем, какую карту открыть (map_index), какие точки стояли (datastore), и какой цвет был выбран (color)
         comboBoxMaps.currentIndex = map_index;
         colorDialog.color = color;
         if (datastore){
@@ -46,6 +49,7 @@ Item {
     }
 
     Component.onDestruction: {
+        //при закрытии программы эти свойства сохраняют свои значения
         map_index = comboBoxMaps.currentIndex;
         color = colorDialog.color;
         var datamodel = [];
@@ -69,6 +73,7 @@ Item {
         property ListModel angles: ListModel { }//список углов
         property ListModel points: ListModel { }//трекинг точек пересечения
 
+        //слот для получения данных о карте из ViewModel
         onSendMapImageData: (map_name, top_left_latitude, top_left_longitude, bottom_right_latitude, bottom_right_longitude, path_to_image) => {
                                 mapName = map_name;
                                 topLeftLatitude = top_left_latitude;
@@ -94,11 +99,13 @@ Item {
         anchors.fill: parent
         spacing: 5
         Item {
+            //корневой елемент работы карты
             id:rootMap
             Layout.fillHeight: true
             Layout.fillWidth: true
 
             Flickable {
+                //элемент для перемещения по карте (картинке карты)
                 id: mapFrame
                 anchors.fill: parent
                 focus: true
@@ -115,7 +122,7 @@ Item {
                 property real deltaX: mapImage.width/10 //делим на 10 - потому что stepSize слайдера = 0.1, то есть увеличение карты при прокрутке = 10%
                 property real deltaY: mapImage.height/10
 
-                //        //левый верхний угол
+                //левый верхний угол
                 property real zeroPointLongitude: modelView.topLeftLongitude
                 property real zeroPointLatitude: modelView.topLeftLatitude
                 //правый нижний угол
@@ -139,10 +146,11 @@ Item {
                 property real distance_fromP2: -1
 
                 Image {
+                    //картинка с картой
                     id: mapImage
 
                     property alias zoom: slider.value
-                    //1000 - это колво пискелей
+                    //1000 - это кол-во пискелей
                     property int markerScale: (mapImage.height/1000).toFixed() < 1? 1 : (mapImage.height/1000).toFixed();
                     property int markerScaleKoef: parseInt(((mapFrame.contentHeight + mapFrame.contentWidth)/1000).toFixed());
 
@@ -158,17 +166,23 @@ Item {
                     transformOrigin: Item.Center
                     source: Qt.resolvedUrl(modelView.pathToImage)
 
+
+                    ListModel {
+                        id: point_model
+                    }
+
                     Repeater {
+                        //повторитель красных точек на карте (модулей)
                         id: repeater_canvas
 
-                        property bool is_ma1_active: false
-                        property bool is_ma2_active: false
                         model: point_model
                         delegate: Canvas {
                             id: canvas
                             anchors.fill: parent
 
-                            property var angleVar: modelView.angle
+                            //полукостыль: когда приходит новый угол, автоматически меняется свойство angleVar, а когда angleVar меняется, то
+                            //мы вызываем canvas.requestPaint() - перерисовку объектов на карте
+                            property real angleVar: modelView.angle
                             onAngleVarChanged: {
                                 canvas.requestPaint();
                             }
@@ -176,6 +190,7 @@ Item {
                             //функция, чтобы нарисовать все обьекты на карте
                             function draw_All_Elements(context, fromx, fromy, tox, toy) {
 
+                                //коэф увеличения приямой линии (в k раз больше основной стрелки)
                                 var k = 100;
 
                                 //построение основной стрелки
@@ -184,7 +199,7 @@ Item {
 
                                 //построение линии с учетом смещения delta
                                 //999 в смещении - означает что нам не нужно ничего от этого модуля
-                                if (modelView.angles.get(model.index).offset === 999) {
+                                if (modelView.angles.get(model.index).offset === 999) { //"обнуляем" все, если смещение невалидное
                                     mapFrame.crossingX = -1;
                                     mapFrame.crossingY = -1;
                                     mapFrame.distance_fromP1 = -1;
@@ -193,28 +208,28 @@ Item {
                                 }
 
                                 context.strokeStyle = colorDialog.color;
-                                var delta = modelView.angles.get(model.index).offset * Math.PI/180;
+                                var delta = modelView.angles.get(model.index).offset * Math.PI/180;//угол смещения
                                 var x1 = (tox - fromx)*Math.cos(delta)-(toy-fromy)*Math.sin(delta)+fromx;
                                 var y1 = (tox - fromx)*Math.sin(delta)+(toy-fromy)*Math.cos(delta)+fromy;
                                 var dx1 = x1 - fromx;
                                 var dy1 = y1 - fromy;
-                                var headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.1; // length of head in pixels
+                                var headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.1; // длина маленьких линий (боковые стрелочки) у стрелки в пикселях
                                 var angle1 = Math.atan2(dy1, dx1);
                                 context.lineWidth = 2;
                                 context.beginPath();
                                 context.moveTo(fromx, fromy);
-                                context.lineTo(x1, y1);
+                                context.lineTo(x1, y1);//рисуем линию
                                 context.stroke();
                                 context.beginPath();
-                                context.moveTo(x1 - headlen1 * Math.cos(angle1 - Math.PI / 8), y1 - headlen1 * Math.sin(angle1 - Math.PI / 8));
+                                context.moveTo(x1 - headlen1 * Math.cos(angle1 - Math.PI / 8), y1 - headlen1 * Math.sin(angle1 - Math.PI / 8));//рисуем боковые стрелочки
                                 context.lineTo(x1, y1);
-                                context.lineTo(x1 - headlen1 * Math.cos(angle1 + Math.PI / 8), y1 - headlen1 * Math.sin(angle1 + Math.PI / 8));
+                                context.lineTo(x1 - headlen1 * Math.cos(angle1 + Math.PI / 8), y1 - headlen1 * Math.sin(angle1 + Math.PI / 8));//рисуем боковые стрелочки
                                 context.stroke();
 
 
                                 //построение линии с учетом угла альфа
                                 //999 в углу - означает что нам не нужно направление на источник от этого модуля
-                                if (modelView.angles.get(model.index).angle === 999) {
+                                if (modelView.angles.get(model.index).angle === 999) { //"обнуляем" все, если угол невалидный
                                     mapFrame.crossingX = -1;
                                     mapFrame.crossingY = -1;
                                     mapFrame.distance_fromP1 = -1;
@@ -222,32 +237,31 @@ Item {
                                     return;
                                 }
 
-                                var beta = modelView.angles.get(model.index).angle * Math.PI/180;
+
+                                var beta = modelView.angles.get(model.index).angle * Math.PI/180;//получаем угол
                                 var x2 = (x1 - fromx)*Math.cos(beta)-(y1-fromy)*Math.sin(beta)+fromx;
                                 var y2 = (x1 - fromx)*Math.sin(beta)+(y1-fromy)*Math.cos(beta)+fromy;
-
+                                //расчет как строить угол отклонения
                                 var alfa = Math.atan2((y2 - fromy),(x2 - fromx));
-                                var tempAlfa = alfa * 180.0 / Math.PI;
-                                var mainAlfa = tempAlfa > 0 ? tempAlfa : 360 + tempAlfa;
                                 var dx_temp = Math.abs(x2 - fromx);
                                 var dy_temp = Math.abs(y2 - fromy);
                                 var L = Math.sqrt(dx_temp * dx_temp + dy_temp * dy_temp);
+                                //получение х и у нужного отклоненного угла
                                 var newx = k * L * Math.cos(alfa);
                                 var newy = k * L * Math.sin(alfa);
 
+                                //подсчет и построение линии отклоненного угла (луча)
                                 x2 = fromx + newx;
                                 y2 = fromy + newy;
-
                                 dx1 = x2 - fromx;
                                 dy1 = y2 - fromy;
-                                headlen1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.25; // length of head in pixels
                                 angle1 = Math.atan2(dy1, dx1);
                                 context.beginPath();
                                 context.moveTo(fromx, fromy);
                                 context.lineTo(x2, y2);
                                 context.stroke();
 
-                                if (point_model.count < 2) {
+                                if (point_model.count < 2) {//если меньше 2-х точек на карте, то дальнейший подсчет не нужен
                                     mapFrame.crossingX = -1;
                                     mapFrame.crossingY = -1;
                                     mapFrame.distance_fromP1 = -1;
@@ -270,25 +284,28 @@ Item {
                                 var x = (m * X1 + Y1 - Y2 - n * X2)/(m-n);
                                 var y = -m*(x - X1) + Y1;
 
-
                                 var new_alfa1 = modelView.angles.get(0).angle;
                                 var new_alfa2 = modelView.angles.get(1).angle;
 
-                                var first_ray_toTop = new_alfa1 < 90 || new_alfa1 > 270 ? true : false;
-                                var second_ray_toTop = new_alfa2 < 90 || new_alfa2 > 270 ? true : false;
+                                var first_ray_toTop = new_alfa1 < 90 || new_alfa1 > 270 ? true : false;//смотрит ли первый луч "наверх"
+                                var second_ray_toTop = new_alfa2 < 90 || new_alfa2 > 270 ? true : false;//смотрит ли второй луч "наверх"
                                 var is_crossing_point_real = true;
+
+                                //////////////////////////////////////////////////////////////////////////////////////////////////
+                                //////сейчас есть небольшая ошибка, когда один из лучей отклоняется на 0 или 180 градусов, то точка пересечения не показывается
+                                //////так же и для 90градусов, точка пересечения показывается только для случая, когда один из лучей отклонен на 270 градусов
+                                //////////////////////////////////////////////////////////////////////////////////////////////////
 
                                 //если первый луч смотрит вверх и точка пересечения лежит ниже начала луча
                                 if (first_ray_toTop && y > Y1) is_crossing_point_real = false;
                                 //если второй луч смотрит вверх и точка пересечения лежит ниже начала луча
                                 if (second_ray_toTop && y > Y2) is_crossing_point_real = false;
                                 //если первый луч смотрит вниз и точка пересечения лежит выше начала луча
-                                if (!first_ray_toTop && y < Y1) is_crossing_point_real = false;
+                                if (!first_ray_toTop && y <= Y1) is_crossing_point_real = false;
                                 //если второй луч смотрит вверх и точка пересечения лежит ниже начала луча
-                                if (!second_ray_toTop && y < Y2) is_crossing_point_real = false;
+                                if (!second_ray_toTop && y <= Y2) is_crossing_point_real = false;
 
-
-                                //пока поменяем цвет точки пересечения
+                                //поменяем цвет точки пересечения на противоположный от самого контрастного
                                 var color = colorDialog.color;
                                 var max_color = Math.max(color.r, color.g, color.b);
                                 if (max_color === color.r) color = "#00FFFF";
@@ -299,8 +316,7 @@ Item {
                                 //трекинг: если он активирован, то рисуем добавленные точки пересечения
                                 if (btn_tracking.isTracking) {
                                     context.fillStyle = color;
-                                    for(var i = 0; i < modelView.points.count; i++) {
-                                        //рисование прошлых точек пересечения
+                                    for(var i = 0; i < modelView.points.count; i++) {//рисование прошлых точек пересечения
                                         context.beginPath();
                                         var radius = mapImage.scale < 1.0 ? 3 : 4/mapImage.scale; //меняем радиус в зависимости от масштаба карты
                                         context.arc(modelView.points.get(i).x, modelView.points.get(i).y, radius, 0, 2 * Math.PI);
@@ -309,14 +325,16 @@ Item {
                                     }
                                 }
 
+
                                 var propX = Math.abs(x)/mapImage.width;
                                 var propY = Math.abs(y)/mapImage.height;
 
-                                //если точка пересечения лежит за пределами карты
+                                //если точка пересечения лежит за пределами карты, то не показываем его на карте
                                 if(x < 0 || y < 0 || x > mapImage.width || y > mapImage.height) {
                                     mapFrame.crossingX = -1;
                                     mapFrame.crossingY = -1;
-                                } else {
+                                }
+                                else {
 
                                     mapFrame.crossingX = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*propX).toFixed(5);
                                     mapFrame.crossingY = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*propY).toFixed(5);
@@ -326,12 +344,12 @@ Item {
                                     var p1Y = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*Y1/mapImage.height).toFixed(5);
                                     var p2X = (mapFrame.zeroPointLongitude + mapFrame.deltaFullLongitude*X2/mapImage.width).toFixed(5);
                                     var p2Y = (mapFrame.zeroPointLatitude - mapFrame.deltaFullLatitude*Y2/mapImage.height).toFixed(5);
-
+                                    //вычисляем дистанцию
                                     mapFrame.distance_fromP1 = (getDistance(p1Y, p1X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
                                     mapFrame.distance_fromP2 = (getDistance(p2Y, p2X, mapFrame.crossingY, mapFrame.crossingX)).toFixed(1);
                                 }
 
-                                //КОСТЫЛЬ ДЛЯ 2х МОДУЛЕЙ
+                                //проверка на валидность точек и точки пересечения лучей
                                 if (modelView.angles.get(0).flag === false || modelView.angles.get(1).flag === false || !is_crossing_point_real) {
                                     mapFrame.crossingX = -1;
                                     mapFrame.crossingY = -1;
@@ -341,7 +359,6 @@ Item {
                                 }
 
                                 if (btn_tracking.isTracking) modelView.points.append({ "x": x, "y": y });
-//                                console.log("angle1 = " + modelView.angles.get(0).angle + "; angle2 = " + modelView.angles.get(1).angle);
 
                                 //рисование точки пересечения
                                 context.beginPath();
@@ -475,10 +492,6 @@ Item {
                                 }
                             }
                         }
-                    }
-
-                    ListModel {
-                        id: point_model
                     }
 
                     Settings {
